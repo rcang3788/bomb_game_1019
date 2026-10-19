@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a2b">
+  <title>炸彈小隊 — 森林清除作戰</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Trebuchet MS", "Noto Sans TC", system-ui, sans-serif;
+      background: #101a2b;
+      color: #f2f5e9;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(ellipse at 50% 5%, #263c52 0, transparent 48%),
+        #101a2b;
+    }
+
+    .game {
+      width: min(100%, 760px);
+    }
+
+    .topline {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: #9bb6bd;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: #ffe28a;
+      font-size: clamp(23px, 5vw, 36px);
+      line-height: 1;
+      letter-spacing: .04em;
+      text-shadow: 0 3px 0 #9e5c32;
+    }
+
+    .new-game {
+      flex: none;
+      border: 1px solid #668594;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #24384a;
+      color: #f2f5e9;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background .15s, transform .15s;
+    }
+
+    .new-game:hover { background: #304d60; transform: translateY(-1px); }
+    .new-game:focus-visible { outline: 3px solid #ffe28a; outline-offset: 3px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid #33485b;
+      border-radius: 10px;
+      padding: 9px 12px;
+      background: #1a2939;
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 3px;
+      color: #9bb6bd;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .1em;
+    }
+
+    .stat-value {
+      overflow: hidden;
+      display: block;
+      color: #fff4cc;
+      font-size: clamp(14px, 3vw, 19px);
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .board-wrap {
+      position: relative;
+      overflow: hidden;
+      border: 4px solid #58737a;
+      border-radius: 14px;
+      background: #293d38;
+      box-shadow: 0 14px 40px #050b13aa, inset 0 0 0 2px #18282c;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    .message {
+      min-height: 24px;
+      margin: 10px 2px 12px;
+      color: #bdd0ce;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .message strong { color: #ffe28a; }
+
+    .help {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 18px;
+      color: #b4c4c4;
+      font-size: 12px;
+    }
+
+    .key {
+      display: inline-grid;
+      min-width: 26px;
+      height: 25px;
+      place-items: center;
+      border: 1px solid #516b78;
+      border-bottom-width: 3px;
+      border-radius: 6px;
+      padding: 0 6px;
+      background: #24384a;
+      color: #fff4cc;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .legend {
+      margin-top: 14px;
+      color: #8fa6aa;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    @media (max-width: 520px) {
+      body { padding: 14px; }
+      .topline { align-items: center; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat { padding: 7px 10px; }
+      .help { gap: 8px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <header class="topline">
+      <div>
+        <p class="eyebrow">Forest clearing operation</p>
+        <h1>炸彈小隊</h1>
+      </div>
+      <button class="new-game" id="restart" type="button">重新開局 ↻</button>
+    </header>
+
+    <section class="stats" aria-label="遊戲狀態">
+      <div class="stat"><span class="stat-label">剩餘樹木</span><span class="stat-value" id="trees">--</span></div>
+      <div class="stat"><span class="stat-label">生命</span><span class="stat-value" id="lives">--</span></div>
+      <div class="stat"><span class="stat-label">炸彈容量</span><span class="stat-value" id="capacity">--</span></div>
+      <div class="stat"><span class="stat-label">爆炸範圍</span><span class="stat-value" id="range">--</span></div>
+    </section>
+
+    <div class="board-wrap">
+      <canvas id="board" width="600" height="600" aria-label="20 乘 20 格炸彈遊戲地圖"></canvas>
+    </div>
+    <p class="message" id="message" aria-live="polite"></p>
+    <div class="help" aria-label="操作說明">
+      <span><kbd class="key">↑</kbd> <kbd class="key">←</kbd> <kbd class="key">↓</kbd> <kbd class="key">→</kbd> 移動</span>
+      <span><kbd class="key">SPACE</kbd> 放置炸彈</span>
+      <span>引爆倒數 3 秒</span>
+    </div>
+    <p class="legend">🌲 可破壞樹木　▰ 不可破壞路障　⚡ 炸彈會傷害自己　收集道具提升能力</p>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const SIZE = 20;
+      const TILE = 30;
+      const BOMB_FUSE = 3000;
+      const FLAME_DURATION = 430;
+      const canvas = document.getElementById("board");
+      const ctx = canvas.getContext("2d");
+      const ui = {
+        trees: document.getElementById("trees"),
+        lives: document.getElementById("lives"),
+        capacity: document.getElementById("capacity"),
+        range: document.getElementById("range"),
+        message: document.getElementById("message")
+      };
+
+      let terrain;
+      let powerups;
+      let bombs;
+      let flames;
+      let player;
+      let treesLeft;
+      let lives;
+      let bombCapacity;
+      let blastRange;
+      let moveDelay;
+      let lastMove;
+      let gameState;
+      let keys;
+
+      const sameCell = (a, b) => a.x === b.x && a.y === b.y;
+      const inside = (x, y) => x >= 0 && y >= 0 && x < SIZE && y < SIZE;
+      const bombAt = (x, y) => bombs.find(bomb => bomb.x === x && bomb.y === y);
+      const flameAt = (x, y, now) => flames.some(flame => flame.x === x && flame.y === y && flame.until > now);
+
+      function startGame() {
+        terrain = Array.from({ length: SIZE }, () => Array(SIZE).fill("grass"));
+        powerups = [];
+        bombs = [];
+        flames = [];
+        player = { x: 0, y: 0, invulnerableUntil: 0 };
+        treesLeft = 0;
+        lives = 3;
+        bombCapacity = 1;
+        blastRange = 1;
+        moveDelay = 145;
+        lastMove = 0;
+        gameState = "playing";
+        keys = new Set();
+
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
+            if (x < 2 && y < 2) continue;
+            const roll = Math.random();
+            if (roll < 0.075) {
+              terrain[y][x] = "barrier";
+            } else if (roll < 0.34) {
+              terrain[y][x] = "tree";
+              treesLeft++;
+            }
+          }
+        }
+
+        ui.message.innerHTML = "清除所有樹木，避開自己的爆炸！";
+        updateHud();
+        draw();
+      }
+
+      function updateHud() {
+        ui.trees.textContent = `${treesLeft}`;
+        ui.lives.textContent = `${"♥ ".repeat(lives).trim()}${lives ? "" : "0"}`;
+        ui.capacity.textContent = `${bombCapacity} 顆`;
+        ui.range.textContent = `${blastRange} 格`;
+      }
+
+      function placeBomb() {
+        if (gameState !== "playing" || bombs.length >= bombCapacity || bombAt(player.x, player.y)) return;
+        bombs.push({ x: player.x, y: player.y, due: performance.now() + BOMB_FUSE });
+      }
+
+      function movePlayer(dx, dy, now) {
+        const x = player.x + dx;
+        const y = player.y + dy;
+        if (!inside(x, y) || terrain[y][x] !== "grass" || bombAt(x, y)) return;
+        player.x = x;
+        player.y = y;
+        collectPowerup(x, y);
+        if (flameAt(x, y, now)) hurtPlayer(now);
+      }
+
+      function collectPowerup(x, y) {
+        const index = powerups.findIndex(item => item.x === x && item.y === y);
+        if (index < 0) return;
+        const item = powerups.splice(index, 1)[0];
+        if (item.type === "speed") {
+          moveDelay = Math.max(75, moveDelay - 18);
+          ui.message.innerHTML = "<strong>疾速靴！</strong> 移動速度提升";
+        } else if (item.type === "range") {
+          blastRange = Math.min(8, blastRange + 1);
+          ui.message.innerHTML = "<strong>火焰強化！</strong> 爆炸範圍增加";
+        } else {
+          bombCapacity = Math.min(6, bombCapacity + 1);
+          ui.message.innerHTML = "<strong>炸彈背包！</strong> 可同時放置的炸彈增加";
+        }
+        updateHud();
+      }
+
+      function hurtPlayer(now) {
+        if (now < player.invulnerableUntil || gameState !== "playing") return;
+        lives--;
+        if (lives <= 0) {
+          gameState = "lost";
+          ui.message.innerHTML = "<strong>任務失敗！</strong> 按「重新開局」再試一次";
+          updateHud();
+          return;
+        }
+
+        const safeSpot = findRespawnSpot(now);
+        if (!safeSpot) {
+          gameState = "lost";
+          ui.message.innerHTML = "<strong>任務失敗！</strong> 沒有安全的重生位置，請重新開局";
+          updateHud();
+          return;
+        }
+        player.x = safeSpot.x;
+        player.y = safeSpot.y;
+        player.invulnerableUntil = now + 1800;
+        ui.message.innerHTML = `<strong>被炸到了！</strong> 還剩 ${lives} 條命，短暫無敵中`;
+        collectPowerup(player.x, player.y);
+        updateHud();
+      }
+
+      function findRespawnSpot(now) {
+        const cells = [];
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
+            if (terrain[y][x] === "grass" && !bombAt(x, y) && !flameAt(x, y, now)) {
+              cells.push({ x, y, distance: Math.abs(x) + Math.abs(y) });
+            }
+          }
+        }
+        cells.sort((a, b) => a.distance - b.distance);
+        return cells[0] || null;
+      }
+
+      function explode(bomb, now) {
+        const queue = [bomb];
+        const exploded = new Set();
+        while (queue.length) {
+          const current = queue.shift();
+          const key = `${current.x},${current.y}`;
+          if (exploded.has(key)) continue;
+          exploded.add(key);
+          bombs = bombs.filter(item => item !== current);
+          addFlame(current.x, current.y, now);
+
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            for (let step = 1; step <= blastRange; step++) {
+              const x = current.x + dx * step;
+              const y = current.y + dy * step;
+              if (!inside(x, y) || terrain[y][x] === "barrier") break;
+              addFlame(x, y, now);
+
+              const chainedBomb = bombAt(x, y);
+              if (chainedBomb) {
+                queue.push(chainedBomb);
+                break;
+              }
+              if (terrain[y][x] === "tree") {
+                terrain[y][x] = "grass";
+                treesLeft--;
+                maybeDropPowerup(x, y);
+                break;
+              }
+            }
+          }
+        }
+
+        if (flameAt(player.x, player.y, now)) hurtPlayer(now);
+        updateHud();
+        if (treesLeft === 0 && gameState === "playing") {
+          gameState = "won";
+          ui.message.innerHTML = "<strong>任務完成！</strong> 森林已清除，重新開局挑戰新地圖";
+        }
+      }
+
+      function addFlame(x, y, now) {
+        const existing = flames.find(flame => flame.x === x && flame.y === y);
+        if (existing) existing.until = Math.max(existing.until, now + FLAME_DURATION);
+        else flames.push({ x, y, until: now + FLAME_DURATION });
+      }
+
+      function maybeDropPowerup(x, y) {
+        if (Math.random() >= 0.27) return;
+        const types = ["speed", "range", "capacity"];
+        powerups.push({ x, y, type: types[Math.floor(Math.random() * types.length)] });
+      }
+
+      function draw() {
+        const now = performance.now();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
+            const px = x * TILE;
+            const py = y * TILE;
+            ctx.fillStyle = (x + y) % 2 ? "#6d9b61" : "#739f66";
+            ctx.fillRect(px, py, TILE, TILE);
+            ctx.fillStyle = "#83ae70";
+            ctx.fillRect(px + 2, py + 2, 2, 2);
+            ctx.fillStyle = "#547e56";
+            ctx.fillRect(px + TILE - 4, py + TILE - 4, 2, 2);
+
+            if (terrain[y][x] === "barrier") drawBarrier(px, py);
+            else if (terrain[y][x] === "tree") drawTree(px, py);
+          }
+        }
+
+        for (const item of powerups) drawPowerup(item);
+        for (const bomb of bombs) drawBomb(bomb, now);
+        flames = flames.filter(flame => flame.until > now);
+        for (const flame of flames) drawFlame(flame);
+
+        const blinking = now < player.invulnerableUntil && Math.floor(now / 110) % 2 === 0;
+        if (!blinking && gameState !== "lost") drawPlayer(player.x * TILE, player.y * TILE);
+        if (gameState === "lost" || gameState === "won") drawOverlay(gameState === "won" ? "森林清除完成！" : "任務失敗");
+      }
+
+      function drawTree(x, y) {
+        ctx.fillStyle = "#4d3327";
+        ctx.fillRect(x + 12, y + 18, 7, 10);
+        ctx.fillStyle = "#24583c";
+        ctx.fillRect(x + 5, y + 9, 20, 14);
+        ctx.fillRect(x + 8, y + 5, 14, 18);
+        ctx.fillStyle = "#32704a";
+        ctx.fillRect(x + 8, y + 7, 11, 10);
+        ctx.fillStyle = "#579159";
+        ctx.fillRect(x + 10, y + 8, 5, 4);
+      }
+
+      function drawBarrier(x, y) {
+        ctx.fillStyle = "#485663";
+        ctx.fillRect(x + 2, y + 4, 26, 23);
+        ctx.fillStyle = "#75828a";
+        ctx.fillRect(x + 4, y + 5, 22, 5);
+        ctx.fillStyle = "#384651";
+        ctx.fillRect(x + 5, y + 12, 8, 5);
+        ctx.fillRect(x + 17, y + 19, 9, 5);
+        ctx.fillStyle = "#62707a";
+        ctx.fillRect(x + 15, y + 11, 10, 5);
+      }
+
+      function drawBomb(bomb, now) {
+        const x = bomb.x * TILE;
+        const y = bomb.y * TILE;
+        const remaining = Math.max(0, bomb.due - now);
+        const pulse = Math.floor(now / 150) % 2 === 0;
+        ctx.fillStyle = "#23313a";
+        ctx.beginPath();
+        ctx.ellipse(x + 15, y + 23, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = pulse ? "#232a32" : "#343c42";
+        ctx.beginPath();
+        ctx.arc(x + 15, y + 16, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#aab4aa";
+        ctx.fillRect(x + 12, y + 6, 5, 4);
+        ctx.strokeStyle = "#ffad4c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 16, y + 8);
+        ctx.lineTo(x + 20, y + 4);
+        ctx.stroke();
+        if (remaining < 1000 && pulse) {
+          ctx.fillStyle = "#ffeb82";
+          ctx.fillRect(x + 18, y + 2, 3, 3);
+        }
+      }
+
+      function drawFlame(flame) {
+        const x = flame.x * TILE;
+        const y = flame.y * TILE;
+        const pulse = Math.floor(performance.now() / 70) % 2 === 0;
+        ctx.fillStyle = pulse ? "#ff9f3d" : "#ffd15c";
+        ctx.fillRect(x + 3, y + 3, 24, 24);
+        ctx.fillStyle = "#fff2a1";
+        ctx.fillRect(x + 8, y + 7, 14, 16);
+        ctx.fillStyle = "#fffbd2";
+        ctx.fillRect(x + 12, y + 11, 6, 8);
+      }
+
+      function drawPowerup(item) {
+        const x = item.x * TILE;
+        const y = item.y * TILE;
+        ctx.fillStyle = "#25353a";
+        ctx.beginPath();
+        ctx.ellipse(x + 15, y + 24, 9, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = item.type === "speed" ? "#65d9e8" : item.type === "range" ? "#ffa550" : "#f277ad";
+        ctx.beginPath();
+        ctx.arc(x + 15, y + 14, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff8dd";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(item.type === "speed" ? "»" : item.type === "range" ? "✦" : "+", x + 15, y + 14);
+      }
+
+      function drawPlayer(x, y) {
+        ctx.fillStyle = "#23313a";
+        ctx.beginPath();
+        ctx.ellipse(x + 15, y + 26, 9, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f3c9a0";
+        ctx.fillRect(x + 10, y + 5, 11, 10);
+        ctx.fillStyle = "#f2d34f";
+        ctx.fillRect(x + 8, y + 12, 15, 10);
+        ctx.fillStyle = "#4c83c0";
+        ctx.fillRect(x + 9, y + 19, 13, 7);
+        ctx.fillStyle = "#3b302b";
+        ctx.fillRect(x + 12, y + 8, 2, 2);
+        ctx.fillRect(x + 18, y + 8, 2, 2);
+        ctx.fillStyle = "#d46e43";
+        ctx.fillRect(x + 8, y + 5, 15, 4);
+        ctx.fillRect(x + 11, y + 2, 9, 5);
+      }
+
+      function drawOverlay(text) {
+        ctx.fillStyle = "#101a2bcc";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffe28a";
+        ctx.font = "900 30px Trebuchet MS, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      }
+
+      function frame(now) {
+        if (gameState === "playing") {
+          const dueBombs = bombs.filter(bomb => bomb.due <= now);
+          for (const bomb of dueBombs) {
+            if (bombs.includes(bomb)) explode(bomb, now);
+          }
+
+          if (now - lastMove >= moveDelay) {
+            const directions = [
+              ["ArrowUp", 0, -1], ["ArrowDown", 0, 1],
+              ["ArrowLeft", -1, 0], ["ArrowRight", 1, 0],
+              ["w", 0, -1], ["s", 0, 1], ["a", -1, 0], ["d", 1, 0]
+            ];
+            const direction = directions.find(([key]) => keys.has(key));
+            if (direction) {
+              movePlayer(direction[1], direction[2], now);
+              lastMove = now;
+            }
+          }
+          if (flameAt(player.x, player.y, now)) hurtPlayer(now);
+        }
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      document.addEventListener("keydown", event => {
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
+        if (event.key === " " && !event.repeat) placeBomb();
+        else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d"].includes(event.key)) {
+          keys.add(event.key);
+        }
+      });
+      document.addEventListener("keyup", event => keys.delete(event.key));
+      window.addEventListener("blur", () => keys.clear());
+      document.getElementById("restart").addEventListener("click", startGame);
+
+      startGame();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
